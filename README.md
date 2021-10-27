@@ -28,26 +28,5 @@ SOMPY has the following dependencies:
 pip install lightSOM
 ```
 
-
-Many thanks to @sebastiandev, the library is now standardized in a pythonic tradition. Below you can see some basic examples, showing how to use the library.
-But I recommend you to go through the codes. There are several functionalities already implemented, but not documented. I would be very happy to add your new examples here.
-
-[Basic Example](https://github.com/mbenhaddou/lightSOM/blob/main/sompy/examples/AirFlights_hexagonal_grid.ipynb)
-
-### Citation
-
-This library is a copy of the SOMPY library form [sevamo](https://github.com/sevamoo/SOMPY). However if possible, please cite the library as follows.
-I needed this linrary to be added tp pypi. I will also improve on it while working with it.
-
-```
-@misc{moosavi2014sompy,
-  title={SOMPY: A Python Library for Self Organizing Map (SOM)},
-  author={Moosavi, V and Packmann, S and Vall{\'e}s, I},
-  note={GitHub.[Online]. Available: https://github. com/sevamoo/SOMPY},
-  year={2014}
-}
-```
-
-
 For more information, you can contact me via sevamoo@gmail.com or svm@arch.ethz.ch, but please report an issue first.
 
