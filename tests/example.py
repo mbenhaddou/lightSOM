@@ -32,7 +32,7 @@ columns=['area', 'perimeter', 'compactness', 'length_kernel', 'width_kernel',
                    'asymmetry_coefficient', 'length_kernel_groove']
 net=SOM().create(25, 25, data_vals, feature_names=columns, target=target,  pbc=True)
 
-net.train(0.1, 1000, random_order=False, keep_error_history=True)
+net.train(0.1, 1000, random_order=False)
 
 
 from lightSOM.visualization.som_view import SOMView

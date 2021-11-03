@@ -22,7 +22,7 @@ def gaussian(nodes, c, sigma):
 
 def mexican_hat(nodes, c, sigma):
     """Mexican hat centered in c."""
-    p = np.power(nodes.node_distances[:,0] - nodes.node_distances[:,0].T[c], 2) + np.power(nodes.node_distances[:,1] - nodes.node_distances[:,1].T[c], 2)
+    p = np.power(nodes.coordinates_x - nodes.coordinates_x.T[c], 2) + np.power(nodes.coordinates_y - nodes.coordinates_y.T[c], 2)
     d = 2 * sigma * sigma
     return (np.exp(-p / d) * (1 - 2 / d * p)).T
 

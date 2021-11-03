@@ -17,7 +17,7 @@ if path != './':
 raw_data = np.asarray([[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0], [1, 0, 1], [0, 1, 1], [0.2, 0.2, 0.5]])
 labels = ['red', 'green', 'blue', 'yellow', 'magenta', 'cyan', 'indigo']
 
-net=SOM().create(20, 20, raw_data,  normalizer=None,feature_names=["red", 'green', 'blue'], target=labels,  pbc=True)
+net=SOM().create(20, 20, raw_data,  neighborhood="mexican_hat", normalizer=None,feature_names=["red", 'green', 'blue'], target=labels,  pbc=True)
 
 net.colorEx = True
 net.train(0.05, 4000, random_order=False)
