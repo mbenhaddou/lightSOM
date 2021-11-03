@@ -13,20 +13,22 @@ As much as possible, the structure of SOM is similar to `somtoolbox` in Matlab. 
 7. Different methods for function approximation and predictions (mostly using Sklearn).
 
 
+Quality Measures
+----------------
+
+After the SOM has been trained, the map needs to be evaluated to find out if it has been optimally trained, or if further training is required. The SOM quality is usually measured with two criteria: quantization error (QE) and topographic error (TE). The QE is the average distance between each data point and its BMU, and TE represents the proportion of all data for which the first and second BMU are not adjacent with respect to the measurement of topology preservation (Kohonen, 2001).
+
 ### Dependencies:
 SOMPY has the following dependencies:
 - numpy
 - scipy
 - scikit-learn
-- numexpr
 - matplotlib
 - pandas
-- ipdb
+
 
 ### Installation:
 ```Python
 pip install lightSOM
 ```
-
-For more information, you can contact me via sevamoo@gmail.com or svm@arch.ethz.ch, but please report an issue first.
 

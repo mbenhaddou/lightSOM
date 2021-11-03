@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib import transforms
 from matplotlib.patches import RegularPolygon
 from matplotlib.collections import PatchCollection
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 def coorToHex(x,y):
@@ -74,8 +75,10 @@ def plot_hex(fig, centers, weights):
         p = PatchCollection(patches)
         p.set_array(np.array(weights))
         ax.add_collection(p)
-        
+
+
+
     ax.axis('off')
-    ax.autoscale_view()
-    
+
+
     return ax
