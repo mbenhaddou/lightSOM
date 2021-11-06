@@ -24,12 +24,12 @@ from lightSOM.nodes import Nodes
 from lightSOM.distance import Distance
 from lightSOM.neighborhood import get_neighberhood
 from lightSOM import hexagons as hx
-#from joblib import Parallel, delayed
+from lightSOM.decay_functions import *
 
 class KSOM:
     """ Kohonen SOM Network class. """
 
-    def __init__(self, height, width, data, normalizer="var", distance="euclidean", neighborhood="gaussian", lattice="hexa",features_names=[], target=None, loadFile=None, PCI=0, PBC=0, random_seed=None):
+    def __init__(self, height, width, data, decay_function="exponential_decay",  normalizer="var", distance="euclidean", neighborhood="gaussian", lattice="hexa",features_names=[], target=None, loadFile=None, PCI=0, PBC=0, random_seed=None):
 
         """Initialise the SOM network.
 
@@ -60,7 +60,7 @@ class KSOM:
         self.PBC=bool(PBC)
 
         self.normalizer=None
-
+        self._decay_function=eval(decay_function)
         if normalizer is not None:
             self.normalizer=NormalizerFactory.build(normalizer)
         """ Activate light parallelization. """
@@ -265,8 +265,8 @@ class KSOM:
         max_iteration : int
             Maximum number of training itarations.
         """
-        self.sigma = self.startSigma * np.exp(-i / self.tau)
-        self.lrate = self.startLearnRate * np.exp(-i / self.epochs)
+        self.sigma = self._decay_function(self.startSigma, i, self.tau)#self.startSigma * np.exp(-i / self.tau)
+        self.lrate = self._decay_function(self.startLearnRate, i, self.tau)#self.startLearnRate * np.exp(-i / self.tau)
 
         # improves the performances
         g = self._neighborhood(self.nodes, win, self.sigma)*self.lrate
@@ -727,6 +727,26 @@ class KSOM:
         cl_labels = clust.KMeans(n_clusters=n_clusters, random_state=random_state).fit_predict(self.nodes.matrix.reshape(-1, self.nodes.dim))
         self.cluster_labels = cl_labels
         return cl_labels
+
+    def classify(self, data):
+        """Classifies each sample in data in one of the classes definited
+        using the method labels_map.
+        Returns a list of the same length of data where the i-th element
+        is the class assigned to data[i].
+        """
+        if self.target is None:
+            raise ValueError("target option is missing for class initialization")
+
+        winmap = self.labels_map(self.data, self.target)
+        default_class = np.sum(list(winmap.values())).most_common()[0][0]
+        result = []
+        for d in data:
+            win_position = self.find_bmu(d)
+            if win_position in winmap:
+                result.append(winmap[win_position].most_common()[0][0])
+            else:
+                result.append(default_class)
+        return result
 
 def run_colorsExample(path='./'):
     """Example of usage of SimpSOM: a number of vectors of length three
