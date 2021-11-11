@@ -1,34 +1,18 @@
-import numpy as np
+from lightSOM import SOM
 import pandas as pd
-import seaborn as sns
-from sklearn.preprocessing import StandardScaler
-from sompy.sompy import SOMFactory
-from sompy.visualization.umatrix import UMatrixView
 
-import sompy
+democracy_index = pd.read_csv('/examples/data/democracy_index.csv')
+feature_names = ['democracy_index', 'electoral_processand_pluralism', 'functioning_of_government',
+                 'political_participation', 'political_culture', 'civil_liberties']
 
-np.random.seed(0)
-
-# get part of the dataset
-# train = pd.read_csv('/Users/mohamedmentis/Dropbox/My Mac (MacBook-Pro.local)/Documents/Mentis/Development/NGA/Projects/Calc/Notebooks/minst/train.csv')
-# train = train.sample(n=600, random_state=0)
-# labels = train['label']
-# train = train.drop("label",axis=1)
-
-# check distribution
-#sns.countplot(labels)
-
-# standardization of a dataset
-#train_st = StandardScaler().fit_transform(train.values)
-raw_data =np.asarray([[1, 0, 0],[0,1,0],[0,0,1],[1,1,0],[1,0,1],[0,1,1],[0.2,0.2,0.5]])
-names=['r','g', 'b']
-
-from sompy.sompy import SOMFactory
-sm = SOMFactory().build(raw_data, (20,20), normalization = 'None', initialization='random', component_names=['r', 'g', 'b'], lattice="hexa")
-
-sm.train(n_job=4, verbose=False, train_rough_len=30, train_finetune_len=100)
-
-hits  = UMatrixView(20, 20,"Clustering",text_size=13)
-hits.show(sm, anotate=True, onlyzeros=False, labelsize=7)
+X = democracy_index[feature_names].values
+target=democracy_index['category'].values
+names=democracy_index['country_code'].values
+size = 15
+som=SOM().create(size, size, X,lattice='rect', target=target, index=names, pci=True, pbc=False)
 
 
+som.train(epochs=10000, verbose=True)
+from lightSOM.visualization.som_view import SOMView
+vhts  = SOMView(som, 10,10, text_size=10)
+vhts.plot_features_map()

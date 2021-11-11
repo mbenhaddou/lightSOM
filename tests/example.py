@@ -1,42 +1,17 @@
-
-import pandas as pd
-import numpy as np
-columns=['area', 'perimeter', 'compactness', 'length_kernel', 'width_kernel',
-                   'asymmetry_coefficient', 'length_kernel_groove', 'target']
-data = pd.read_csv('https://archive.ics.uci.edu/ml/machine-learning-databases/00236/seeds_dataset.txt',
-                    names=columns,
-                   sep='\t+', engine='python')
-target = data['target'].values
-label_names = {1:'Kama', 2:'Rosa', 3:'Canadian'}
-data = data[data.columns[:-1]]
-
-
-data_vals = data.values
-
-import sys, os, errno
-import numpy as np
-
-sys.path.append('../..')
-
 from lightSOM import SOM
-path='./output/basic'
+import numpy as np
+import pandas as pd
 
-if path != './output/basic':
-    try:
-        os.makedirs(path)
-    except OSError as exception:
-        if exception.errno != errno.EEXIST:
-            raise
+data = pd.read_csv('https://archive.ics.uci.edu/ml/machine-learning-databases/00236/seeds_dataset.txt',
+                    names=['area', 'perimeter', 'compactness', 'length_kernel', 'width_kernel',
+                   'asymmetry_coefficient', 'length_kernel_groove', 'target'], usecols=[0, 5],
+                   sep='\t+', engine='python')
 
-columns=['area', 'perimeter', 'compactness', 'length_kernel', 'width_kernel',
-                   'asymmetry_coefficient', 'length_kernel_groove']
-net=SOM().create(25, 25, data_vals, feature_names=columns, target=target,  pbc=True)
+data = data.values
+data = (data - np.mean(data, axis=0)) / np.std(data, axis=0)
+# Initialization and training
+som_shape = (1, 3)
 
-net.train(0.1, 1000, random_order=False)
+net=SOM().create(1, 3, data, pci=True,pbc=True)
 
-
-from lightSOM.visualization.som_view import SOMView
-vhts  = SOMView(net, 10,10, text_size=10)
-#vhts.plot_nodes_maps(which_dim="all",col_size=3,denormalize=True)
-vhts.plot_training_errors()
-
+net.train(0.5, 500, random_order=True)

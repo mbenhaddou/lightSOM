@@ -10,16 +10,16 @@ class InvalidNodeIndexError(Exception):
 class InvalidMapsizeError(Exception):
     pass
 
-from lightSOM.visualization.hexagons import generate_hex_lattice
+from lightSOM.visualization.map_plot import generate_hex_lattice, generate_rect_lattice
 
 class Nodes(object):
 
-    def __init__(self, height, width, lattice='rect', pbc=False):
+    def __init__(self, height, width, dim, lattice='rect', pbc=False):
         self.lattice = lattice
         mapsize=(height, width)
 
         self.PBC =pbc
-
+        self.dim=dim
         if 2 == len(mapsize):
             _size = [1, np.max(mapsize)] if 1 == np.min(mapsize) else mapsize
 
@@ -35,8 +35,10 @@ class Nodes(object):
         self.nnodes = self.mapsize[0]*self.mapsize[1]
         self.matrix = np.asarray(self.mapsize)
         self.initialized = False
-
-        self.coordinates= generate_hex_lattice(height, width)
+        if self.lattice=='hexa':
+            self.coordinates= generate_hex_lattice(height, width)
+        elif self.lattice=='rect':
+            self.coordinates=generate_rect_lattice(height, width)
         self.coordinates_x=self.coordinates[:,0].reshape(height, width)
         self.coordinates_y=self.coordinates[:,1].reshape(height, width)
 
@@ -51,17 +53,25 @@ class Nodes(object):
                     self.node_distances[j][i] = self.node_distances[i][j]
 
         self.node_distances_reshaped=np.array(self.node_distances).reshape(*self.mapsize,*self.mapsize)
-    def random_initialization(self, data):
+
+    def random_initialization(self, data, random_generator=None):
         """
         :param data: data to use for the initialization
         :returns: initialized matrix with same dimension as input data
         """
-        mn = np.tile(np.min(data, axis=0), (self.nnodes, 1))
-        mx = np.tile(np.max(data, axis=0), (self.nnodes, 1))
-        self.dim=data.shape[1]
-        self.matrix = mn + (mx-mn)*(np.random.rand(self.nnodes, data.shape[1]))
-        self.initialized = True
-        self.matrix = self.matrix.reshape(self.mapsize[0], self.mapsize[1], data.shape[1])
+
+        # mn = np.tile(np.min(data, axis=0), (self.nnodes, 1))
+        # mx = np.tile(np.max(data, axis=0), (self.nnodes, 1))
+        # self.dim=data.shape[1]
+        # if random_generator:
+        # self.matrix = mn + (mx-mn)*(np.random.rand(self.nnodes, data.shape[1]))
+        # self.initialized = True
+        # self.matrix = self.matrix.reshape(self.mapsize[0], self.mapsize[1], data.shape[1])
+        if random_generator is None:
+            random_generator = np.random.RandomState()
+
+        self.matrix = random_generator.rand(*self.mapsize, data.shape[1])*2-1
+        self.matrix /= np.linalg.norm(self.matrix, axis=-1, keepdims=True)
 
     def pca_linear_initialization(self, data):
         """

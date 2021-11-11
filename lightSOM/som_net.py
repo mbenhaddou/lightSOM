@@ -29,7 +29,7 @@ from lightSOM.decay_functions import *
 class KSOM:
     """ Kohonen SOM Network class. """
 
-    def __init__(self, height, width, data, decay_function="exponential_decay",  normalizer="var", distance="euclidean", neighborhood="gaussian", lattice="hexa",features_names=[], target=None, loadFile=None, PCI=0, PBC=0, random_seed=None):
+    def __init__(self, height, width, data, decay_function="exponential_decay",  normalizer="var", distance="euclidean", neighborhood="gaussian", lattice="hexa",features_names=[], index=None, target=None, loadFile=None, PCI=0, PBC=0, random_seed=None):
 
         """Initialise the SOM network.
 
@@ -50,7 +50,7 @@ class KSOM:
         self.colorEx=False
 
         self.target=target
-
+        self.index=index
         self.distance=distance
 
         """ Switch to activate periodic PCA weights initialisation. """
@@ -69,11 +69,17 @@ class KSOM:
 
         if self.PBC==True:
             print("Periodic Boundary Conditions active.")
+        elif self.PBC==True and lattice=="rect":
+            print("Periodic Boundary Conditions is still not implemented for rectangular lattice. Setting it to False")
+            self.PBC=False
+
         else:
             print("Periodic Boundary Conditions inactive.")
-        self.nodes=Nodes(width, height,lattice=lattice, pbc=self.PBC)
         self.data_raw=data
-        self._dim=self.data_raw.shape[1]
+
+
+        self.nodes=Nodes(width, height, dim= self.data_raw.shape[1], lattice=lattice, pbc=self.PBC)
+
         self._random_generator = np.random.RandomState(random_seed)
         self.data = self.normalizer.normalize(data) if normalizer else data
         self.data=data.reshape(np.array([data.shape[0], data.shape[1]]))
@@ -96,7 +102,7 @@ class KSOM:
             else:
                 print("The weights will be initialised randomly.")
 
-                self.nodes.random_initialization(self.data)
+                self.nodes.random_initialization(self.data, self._random_generator)
 
         else:
             print('The weights will be loaded from file.')
@@ -185,7 +191,7 @@ class KSOM:
             return iterations
 
 
-    def train(self, start_learning_rate=0.1, epochs=-1, verbose=True, random_order=True, keep_error_history=False):
+    def train(self, start_learning_rate=0.1, start_sigma=None, epochs=-1, verbose=True, random_order=True, keep_error_history=False):
 
         """Train the SOM.
 
@@ -216,11 +222,12 @@ class KSOM:
 
         iterations=self._get_iteration_indexes(verbose,random_order)
 
-
-        self.startSigma = max(self.height, self.width) / 2
+        self.startSigma=start_sigma
+        if start_sigma is None:
+            self.startSigma = max(self.height, self.width) / 2
         self.startLearnRate = start_learning_rate
 
-        self.tau = self.epochs/np.log(self.startSigma)
+        self.tau = self.epochs/np.log(self.startSigma) if self.startSigma>1 else self.epochs
 
         #TODO:
         #Parallel(n_jobs=self.n_jobs)(delayed(my_func)(c, K, N) for c in inputs)
@@ -232,7 +239,7 @@ class KSOM:
 
             bmu=self.find_bmu(inputVec)
 
-            self.update_weights2(inputVec, bmu, i)
+            self.update_weights(inputVec, bmu, i)
 #            self.update_weights2(inputVec, bmu, i)
             if keep_error_history:
                 self._quantization_errors.append(self.quantization_error(self.data))
@@ -251,7 +258,7 @@ class KSOM:
             print("\rTraining SOM... done!")
 
 
-    def update_weights2(self, x, win, i):
+    def update_weights(self, x, win, i):
         """Updates the weights of the neurons.
 
         Parameters
@@ -273,25 +280,40 @@ class KSOM:
         # w_new = eta * neighborhood_function * (x-w)
         self.nodes.matrix += np.einsum('ij, ijk->ijk', g, x-self.nodes.matrix)
 
+    def bmu_map(self, data, return_indices=False):
+        """Returns a dictionary wm where wm[(i,j)] is a list with:
+        - all the patterns that have been mapped to the position (i,j),
+          if return_indices=False (default)
+        - all indices of the elements that have been mapped to the
+          position (i,j) if return_indices=True"""
 
-    def update_weights(self, train_ex, bmu, i, step=20):
-        radius_sq = self.startSigma * np.exp(-i / self.tau)
-        learn_rate = self.startLearnRate * np.exp(-i / self.epochs)
+
+        winmap = defaultdict(list)
+        for i, x in enumerate(data):
+            winmap[self.find_bmu(x)].append(i if return_indices else x)
+        return winmap
 
 
+    def bmu_ind_to_xy(self, bmu_ind):
+        """
+        Translates a best matching unit index to the corresponding
+        matrix x,y coordinates.
 
-        g, h = bmu
-        # if radius is close to zero then only BMU is changed
-        if radius_sq < 1e-3:
-            self.nodes.matrix[g, h, :] += learn_rate * (train_ex - self.nodes.matrix[g, h, :])
+        :param bmu_ind: node index of the best matching unit
+            (number of node from top left node)
+        :returns: corresponding (x,y) coordinate
+        """
+        rows = self.nodes.mapsize[0]
+        cols = self.nodes.mapsize[1]
 
-        # Change all cells in a small neighborhood of BMU
-        for i in range(int(max(0, g - step)), int(min(self.nodes.matrix.shape[0], g + step))):
-            for j in range(int(max(0, h - step)), int(min(self.nodes.matrix.shape[1], h + step))):
-                dist_sq=self.nodes.node_distances[i*self.width+j][g*self.width+h]
-                dist_func = np.exp(-dist_sq*dist_sq / (2 * radius_sq*radius_sq))
-                self.nodes.matrix[i, j, :] -= learn_rate * dist_func * (self. nodes.matrix[i, j, :]-train_ex)
+        # bmu should be an integer between 0 to no_nodes
+        out = np.zeros((bmu_ind.shape[0], 3))
+        out[:, 2] = bmu_ind
+        out[:, 0] = rows-1-bmu_ind / cols
+        out[:, 0] = bmu_ind / cols
+        out[:, 1] = bmu_ind % cols
 
+        return out.astype(int)
 
     def labels_map(self, data, labels):
         """Returns a dictionary wm where wm[(i,j)] is a dictionary
@@ -401,52 +423,6 @@ class KSOM:
         cc = ['Feature-' + str(i+1) for i in range(0, self._dim)]
         return np.asarray(cc)[np.newaxis, :]
 
-    def nodes_graph(self, colnum=0, show=False, printout=True, path='./', colname=None):
-
-        """Plot a 2D map with hexagonal nodes and weights values
-
-        Args:
-            colnum (int): The index of the weight that will be shown as colormap.
-            show (bool, optional): Choose to display the plot.
-            printout (bool, optional): Choose to save the plot to a file.
-            colname (str, optional): Name of the column to be shown on the map.
-        """
-
-        if not colname:
-            colname = str(colnum)
-
-        centers = [[node[0], node[1]] for node in self.nodes.coordinates]
-
-        widthP=100
-        dpi=72
-        xInch = self.width * widthP / dpi
-        yInch = self.height * widthP / dpi
-        fig=plt.figure(figsize=(xInch, yInch), dpi=dpi)
-
-        if self.colorEx==True:
-            cols = [[np.float(node[0]),np.float(node[1]),np.float(node[2])]for node in self.nodes.matrix.reshape(-1,3)]
-            ax = hx.plot_hex(fig, centers, cols, 'Node Grid w Color Features')
-            printName=os.path.join(path,'nodesColors.png')
-
-        else:
-            cols = [node[colnum] for node in self.nodes.matrix.reshape(-1,3)]
-            ax = hx.plot_hex(fig, centers, cols)
-            ax.set_title('Node Grid w Feature ' + colname, size=80)
-            divider = make_axes_locatable(ax)
-            cax = divider.append_axes("right", size="5%", pad=0.0)
-            cbar = plt.colorbar(ax.collections[0], cax=cax)
-            cbar.set_label(colname, size=80, labelpad=50)
-            cbar.ax.tick_params(labelsize=60)
-            plt.sca(ax)
-            printName = os.path.join(path, 'nodesFeature_' + str(colnum) + '.png')
-
-        if printout==True:
-            plt.savefig(printName, bbox_inches='tight', dpi=dpi)
-        if show==True:
-            plt.show()
-        if show!=False and printout!=False:
-            plt.clf()
-
     def build_u_matrix(self, distance=1.01, row_normalized=False):
         UD2 = np.array(self.nodes.node_distances)
         Umatrix = np.zeros((self.nodes.nnodes, 1))
@@ -465,53 +441,6 @@ class KSOM:
             Umatrix[i] = np.float(np.sum(neighborbor_dists) / (neighborbor_dists.shape[1] - 1))
 
         return Umatrix.reshape(self.nodes.nnodes)
-
-    def diff_graph(self, show=False, printout=True, returns=False, path='./'):
-
-        """Plot a 2D map with nodes and weights difference among neighbouring nodes.
-
-        Args:
-            show (bool, optional): Choose to display the plot.
-            printout (bool, optional): Choose to save the plot to a file.
-            returns (bool, optional): Choose to return the difference value.
-
-        Returns:
-            (list): difference value for each node2.
-        """
-
-
-        diffs=self.build_u_matrix()
-        centers =  self.nodes.coordinates
-
-        if show==True or printout==True:
-
-            widthP=100
-            dpi=72
-            xInch = self.width * widthP / dpi
-            yInch = self.height * widthP / dpi
-            fig=plt.figure(figsize=(xInch, yInch), dpi=dpi)
-
-            ax = hx.plot_hex(fig, centers, diffs)
-
-
-            divider = make_axes_locatable(ax)
-            cax = divider.append_axes("right", size="5%", pad=0.0)
-            cbar=plt.colorbar(ax.collections[0], cax=cax)
-            cbar.set_label('Weights Difference', size=80, labelpad=50)
-            cbar.ax.tick_params(labelsize=60)
-            plt.sca(ax)
-
-            printName=os.path.join(path,'nodesDifference.png')
-
-            if printout==True:
-                plt.savefig(printName, bbox_inches='tight', dpi=dpi)
-            if show==True:
-                plt.show()
-            if show!=False and printout!=False:
-                plt.clf()
-
-        if returns==True:
-            return diffs
 
     def project(self, array, colnum=-1, labels=[], show=False, printout=True, path='./', colname = None):
 
@@ -558,48 +487,6 @@ class KSOM:
                     cls.append('#ffffff')
                 else:
                     cls.append(array[i,colnum])
-
-        # if show==True or printout==True:
-        #
-        #     """ Call nodes_graph/diff_graph to first build the 2D map of the nodes. """
-        #
-        #     if self.colorEx==True:
-        #         printName=os.path.join(path,'colorProjection.png')
-        #         self.nodes_graph(colnum, False, False)
-        #         plt.scatter([pos[0] for pos in bmuList],[pos[1] for pos in bmuList], color=cls,
-        #                 s=500, edgecolor='#ffffff', linewidth=5, zorder=10)
-        #         plt.title('Datapoints Projection', size=80)
-        #     else:
-        #         #a random perturbation is added to the points positions so that data
-        #         #belonging plotted to the same bmu will be visible in the plot
-        #         if colnum==-1:
-        #             printName=os.path.join(path,'projection_difference.png')
-        #             self.diff_graph(False, False, False)
-        #             plt.scatter([pos[0]-0.125+np.random.rand()*0.25 for pos in bmuList],[pos[1]-0.125+np.random.rand()*0.25 for pos in bmuList], c=cls, cmap=cm.viridis,
-        #                     s=400, linewidth=0, zorder=10)
-        #             plt.title('Datapoints Projection on Nodes Difference', size=80)
-        #         else:
-        #             printName=os.path.join(path,'projection_'+ colname +'.png')
-        #             self.nodes_graph(colnum, False, False, colname=colname)
-        #             plt.scatter([pos[0]-0.125+np.random.rand()*0.25 for pos in bmuList],[pos[1]-0.125+np.random.rand()*0.25 for pos in bmuList], c=cls, cmap=cm.viridis,
-        #                     s=400, edgecolor='#ffffff', linewidth=4, zorder=10)
-        #             plt.title('Datapoints Projection #' +  str(colnum), size=80)
-        #
-        #     # if labels!=[]:
-        #     #     recs = []
-        #     #     for i in class_assignment:
-        #     #         recs.append(mpatches.Rectangle((0,0),1,1,fc=class_assignment[i]))
-        #     #     plt.legend(recs,class_assignment.keys(),loc=0)
-        #
-        #     # if labels!=[]:
-        #     #     for label, x, y in zip(labels, [lattice_pos[0] for lattice_pos in bmuList],[lattice_pos[1] for lattice_pos in bmuList]):
-        #     #         plt.annotate(label, xy=(x,y), xytext=(-0.5, 0.5), textcoords='offset points', ha='right', va='bottom', size=50, zorder=11)
-        #
-        #     # if printout==True:
-        #     #     plt.savefig(printName, bbox_inches='tight', dpi=72)
-        #     # if show==True:
-        #     #     plt.show()
-        #     # plt.clf()
 
         """ Print the x,y coordinates of bmus, useful for the clustering function. """
 
@@ -680,45 +567,6 @@ class KSOM:
                 raise
         else:
             sys.exit("Error: unkown clustering algorithm " + type)
-
-
-        if savefile==True:
-            with open(os.path.join(path,type+'_clusters.'+filetype),
-                      'w') as file:
-                if filetype=='csv':
-                    separator=','
-                else:
-                    separator=' '
-                for line in clusters:
-                    for id in line: file.write(str(id)+separator)
-                    file.write('\n')
-
-        if printout==True or show==True:
-
-            np.random.seed(0)
-            printName=os.path.join(path,type+'_clusters.png')
-
-            fig, ax = plt.subplots()
-
-            for i in range(len(clusters)):
-                randCl = "#%06x" % np.random.randint(0, 0xFFFFFF)
-                xc,yc=[],[]
-                for c in clusters[i]:
-                    #again, invert y and x to be consistent with the previous maps
-                    xc.append(bmuList[int(c)][0])
-                    yc.append(self.height - bmuList[int(c)][1])
-                ax.scatter(xc, yc, color=randCl, label='cluster'+str(i))
-
-            plt.gca().invert_yaxis()
-            plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
-            ax.set_title('Clusters')
-            ax.axis('off')
-
-            if printout==True:
-                plt.savefig(printName, bbox_inches='tight', dpi=600)
-            if show==True:
-                plt.show()
-            plt.clf()
 
         return clusters
 

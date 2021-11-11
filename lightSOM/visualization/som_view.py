@@ -1,10 +1,11 @@
 from matplotlib import pyplot as plt
 import numpy as np
 import math, os
-from lightSOM.visualization.hexagons import plot_hex
+from lightSOM.visualization.map_plot import plot_hex_map, plot_rect_map
 from kdmt.matrix import euclidean_distance
 from collections import Counter
 import matplotlib
+from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
 from lightSOM.visualization.resources import markers, colors
 markers={i:m for i,m in enumerate(markers.keys())}
@@ -77,7 +78,7 @@ class SOMView():
         indtoshow, sV, sH = None, None, None
 
         if which_dim == 'all':
-            dim = self.som._dim
+            dim = self.som.nodes.dim
             row_sz = np.ceil(float(dim) / col_sz)
             msz_row, msz_col = self.som.nodes.mapsize
             ratio_hitmap = msz_row / float(msz_col)
@@ -126,7 +127,7 @@ class SOMView():
 
 
     def show(self, matrix, file_name='nodesColors.png', which_dim='all', cmap = plt.get_cmap('viridis'),
-             col_size=1, save=True, path='.', show=False, colorEx=False):
+             col_size=1, save=True, path='.', show_colorbar=True, colorEx=False, alpha=1):
         (self.width, self.height, indtoshow, no_row_in_plot, no_col_in_plot,
          axis_num) = self._calculate_figure_params(which_dim, col_size)
         self.prepare()
@@ -135,27 +136,30 @@ class SOMView():
         colors = []
         if colorEx:
             colors.append([list(node) for node in matrix.reshape(-1, 3)])
-            ax = plot_hex(self._fig, centers, colors, 'Node Grid w Color Features')
+            ax = plot_hex_map(self._fig, centers, colors, 'Node Grid w Color Features')
         else:
             weights = matrix
             if which_dim == 'all':
 #                names = ["Feature_"+ f for f in self.som.features_names[0]]
                 for which_dim in range(len(weights.reshape(-1, self.som.nodes.dim)[0])):
                     names.append("Feature_" + self.som.features_names[0][which_dim])
-                    colors.append([[node[which_dim]] for node in weights.reshape(-1, self.som._dim)])
+                    colors.append([[node[which_dim]] for node in weights.reshape(-1, self.som.nodes.dim)])
             elif type(which_dim) == int:
                 names.append(["Feature_"+self.som.features_names[0][which_dim]])
-                colors.append([[node[which_dim]] for node in weights.reshape(-1, self.som._dim)])
+                colors.append([[node[which_dim]] for node in weights.reshape(-1, self.som.nodes.dim)])
             elif type(which_dim) == list:
                 for dim in which_dim:
                     names.append("Feature_" + self.som.features_names[0][dim])
-                    colors.append([[node[dim]] for node in weights.reshape(-1, self.som._dim)])
+                    colors.append([[node[dim]] for node in weights.reshape(-1, self.som.nodes.dim)])
             elif which_dim=='none':
                 names=[]
                 colors.append(matrix)
-
-            ax=plot_hex(fig=self._fig, centers=centers, weights=colors, titles=names,
-                         shape=[no_row_in_plot, no_col_in_plot], cmap=cmap)
+            if self.som.nodes.lattice=="hexa":
+                ax=plot_hex_map(fig=self._fig, centers=centers, weights=colors, titles=names,
+                                shape=[no_row_in_plot, no_col_in_plot], cmap=cmap, show_colorbar=show_colorbar, alpha=alpha)
+            else:
+                ax=plot_rect_map(fig=self._fig, centers=centers, weights=colors, titles=names,
+                                shape=[no_row_in_plot, no_col_in_plot], cmap=cmap, show_colorbar=show_colorbar, alpha=alpha)
 
 
         if save==True:
@@ -164,10 +168,7 @@ class SOMView():
             else:
                 printName=os.path.join(path, file_name)
             self.save(printName, bbox_inches='tight', dpi=300)
-        if show==True:
-            plt.show()
-        if show!=False and save!=False:
-            plt.clf()
+
         return ax
 
     def plot_nodes_maps(self,  file_name='nodes_features.png',which_dim='all', cmap = plt.get_cmap('viridis'),
@@ -181,16 +182,34 @@ class SOMView():
              col_size, save, path, show, colorEx)
 
 
+    def plot_features_map(self,file_name='features_map.png', cmap = plt.get_cmap('viridis'),
+             col_size=1, save=True, path='.', show_colorbar=False, colorEx=False):
+
+        features=np.zeros(self.som.nodes.mapsize)
+        for i in np.arange(self.som.nodes.matrix.shape[0]):
+            for j in np.arange(self.som.nodes.matrix.shape[1]):
+                features[i][j] = np.argmax(self.som.nodes.matrix[i, j, :])
+
+        self.title="Features Map"
+        ax= self.show(features.ravel(), file_name, "none", cmap,
+             col_size, save, path, show_colorbar, colorEx)
+
     def plot_diffs(self, cmap = plt.get_cmap('viridis'),
-             col_size=1, denormalize=False, save=True, path='.', show=False, annotate_target=False, annotate_samples=False, file_name='nodes_differences', colorEx=False):
+                   col_size=1, denormalize=False, save=True, path='.', show_colorbar=False, annotate="none", file_name='nodes_differences', colorEx=False):
 
         diffs=self.build_diff_matrix(self.som, denormalize=denormalize)
         self.title="Difference Map"
-        ax=self.show(diffs, file_name, "none", cmap, col_size, save, path, show, colorEx)
-        if annotate_target and self.som.target is not None:
+        alpha=1
+        if annotate.lower() !="none":
+            alpha=0.5
+        ax=self.show(diffs, file_name, "none", cmap, col_size, save, path, show_colorbar, colorEx, alpha=alpha)
+
+        if annotate=="target" and self.som.target is not None:
             self._set_label_markers(ax, self.som.data, self.som.target)
-        if annotate_samples and self.som.target is not None:
+        elif annotate=="samples" and self.som.target is not None:
             self._annotate_samples(ax, self.som.data, self.som.target)
+        elif annotate=="names" and self.som.target is not None and self.som.index is not None:
+            self._annotate_samples_with_names(ax, self.som.data, self.som.target, self.som.index)
 
     def plot_cluster_map(self, data=None, n_clusters=4, anotate=False, onlyzeros=False, labelsize=7, cmap = plt.get_cmap('Pastel1')):
         org_w = self.width
@@ -224,10 +243,10 @@ class SOMView():
                     # TODO: Fix position of the labels
                     self._set_labels(cents, ax, clusters, onlyzeros, labelsize, hex=False)
 
-            plt.imshow(np.flip(clusters.reshape(msz[0], msz[1])[::],axis=0), alpha=0.5)
+            plt.imshow(np.flip(np.array(clusters).reshape(msz[0], msz[1])[::],axis=0), alpha=0.5)
 
         elif self.som.nodes.lattice == "hexa":
-            ax=plot_hex(self._fig, centers, clusters,   cmap=cmap, show_color_bar=False)
+            ax=plot_hex_map(self._fig, centers, clusters, cmap=cmap, show_colorbar=False)
             if anotate:
                 self._set_labels(centers, ax, clusters[0], onlyzeros, labelsize, hex=True)
             self.save("clusres.png", bbox_inches='tight', dpi=300)
@@ -272,7 +291,7 @@ class SOMView():
 
             #plt.show()
         elif self.som.nodes.lattice == "hexa":
-            ax=plot_hex(self._fig, centers, counts,   cmap=cmap, show_color_bar=False)
+            ax=plot_hex_map(self._fig, centers, counts, cmap=cmap, show_colorbar=False)
 
 #            ax, cents = plot_hex_map(mp[::-1], colormap=cmap, fig=self._fig)
             if anotate:
@@ -315,18 +334,41 @@ class SOMView():
         plt.savefig('./som_seed_pies.png')
         return plt
 
-    def _annotate_samples(self, ax, data, target):
+    def _annotate_samples(self, ax, data, target=None):
 
         w_x, w_y = zip(*[[self.som.nodes.coordinates_x[self.som.find_bmu(xx)[0]][self.som.find_bmu(xx)[1]], self.som.nodes.coordinates_y[self.som.find_bmu(xx)[0]][self.som.find_bmu(xx)[1]]] for xx in data])
         w_x = np.array(w_x)
         w_y = np.array(w_y)
-        target=np.array(target)
-        for c in np.unique(target):
-            idx_target = target == c
-            ax.scatter(w_x[idx_target] + (np.random.rand(np.sum(idx_target))) * .5,
-                        w_y[idx_target] + (np.random.rand(np.sum(idx_target))) * .5,
-                        s=50, c=colors[c], label=target[c])
+        if target is not None:
+            target=np.array(target)
+            for c in np.unique(target):
+                idx_target = target == c
+                ax.scatter(w_x[idx_target] + (np.random.rand(np.sum(idx_target))) * .5,
+                            w_y[idx_target] + (np.random.rand(np.sum(idx_target))) * .5,
+                            s=50, c=colors[c], label=target[c])
         ax.legend(loc='upper right')
+        ax.grid()
+
+
+    def _annotate_samples_with_names(self, ax, data, target=None, names=None):
+        data_map={}
+        if names is not None:
+            data_map = self.som.labels_map(data, names)
+
+        color_dict={u:colors[i] for i, u in enumerate(np.unique(target))}
+        target_color_dict={name:color_dict[target[i]] for i,name in enumerate(names)}
+
+        for p, data_item in data_map.items():
+            data_item = list(data_item)
+            x = p[0] + .1
+            y = p[1] - .8
+            for i, c in enumerate(data_item):
+                off_set = (i + 1) / len(data_item) - 0.05
+                ax.text(x, y + off_set, c, c=target_color_dict[c], fontsize=10)
+        legend_elements = [Patch(facecolor=clr,
+                                 edgecolor='w',
+                                 label=l) for l, clr in color_dict.items()]
+        ax.legend(handles=legend_elements, loc='center left', bbox_to_anchor=(1, .95))
         ax.grid()
 
     def plot_frequencies(self, data=None, cmap=plt.get_cmap('OrRd'), file_name='frequency_plot.png', col_size=1, save=True, path='.', show=False):

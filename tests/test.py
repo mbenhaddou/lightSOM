@@ -21,7 +21,7 @@ net=SOM().create(20, 20, raw_data,  neighborhood="mexican_hat", normalizer=None,
 
 net.colorEx = True
 net.train(0.05, 4000, random_order=False)
-
+net.cluster()
 #net.nodes_graph(colnum=0)
 
 

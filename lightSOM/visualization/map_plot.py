@@ -32,7 +32,6 @@ def coorToHex(x,y):
 
 
 def generate_hex_lattice(n_rows, n_columns):
-    w, h = np.sqrt(3), 2
     x_coord, y_coord = [], []
     for i in range(n_rows):
         for j in range(n_columns):
@@ -42,7 +41,17 @@ def generate_hex_lattice(n_rows, n_columns):
     coordinates = np.column_stack([x_coord, y_coord])
     return coordinates
 
-def plot_hex(fig, centers, weights,titles=[],shape=[1, 1], cmap = plt.get_cmap('viridis'), show_color_bar=True):
+def generate_rect_lattice(n_rows, n_columns):
+
+    x_coord, y_coord = [], []
+    for i in range(n_rows):
+        for j in range(n_columns):
+            x_coord.append(i)
+            y_coord.append(j)
+    coordinates = np.column_stack([x_coord, y_coord])
+    return coordinates
+
+def plot_hex_map(fig, centers, weights, titles=[], shape=[1, 1], cmap = plt.get_cmap('viridis'), show_colorbar=True, alpha=1):
     
     """Plot an hexagonal grid based on the nodes positions and color the tiles
        according to their weights.
@@ -59,6 +68,9 @@ def plot_hex(fig, centers, weights,titles=[],shape=[1, 1], cmap = plt.get_cmap('
                 
     """
 
+
+    if isinstance(cmap, str):
+        cmap=plt.get_cmap(cmap)
 
     xpoints = [x[0]  for x in centers]
     ypoints = [x[1]  for x in centers]
@@ -102,14 +114,14 @@ def plot_hex(fig, centers, weights,titles=[],shape=[1, 1], cmap = plt.get_cmap('
 
             p = PatchCollection(patches)
             p.cmap=cmap
-
+            p.set_alpha(alpha=alpha)
             p.set_array(np.array([w[0] for w in weight]))
             ax.add_collection(p)
 
 
             ax.axis('off')
             ax.autoscale_view()
-            if show_color_bar:
+            if show_colorbar:
                 divider = make_axes_locatable(ax)
                 cax = divider.append_axes("right", size="5%", pad=0.05)
 
@@ -119,5 +131,85 @@ def plot_hex(fig, centers, weights,titles=[],shape=[1, 1], cmap = plt.get_cmap('
         ax.axis('off')
         if title !="":
             ax.set_title(title, size=30/(np.log2(len(titles))))
+        ax.autoscale_view()
+    return ax
+
+
+def plot_rect_map(fig, centers, weights, titles=[], shape=[1, 1], cmap=plt.get_cmap('viridis'), show_colorbar=True, alpha=1):
+    """Plot an hexagonal grid based on the nodes positions and color the tiles
+       according to their weights.
+
+        Args:
+            fig (matplotlib figure object): the figure on which the hexagonal grid will be plotted.
+            centers (list, float): array containing couples of coordinates for each cell
+                to be plotted in the Hexagonal tiling space.
+            weights (list, float): array contaning informations on the weigths of each cell,
+                to be plotted as colors.
+
+        Returns:
+            ax (matplotlib axis object): the axis on which the hexagonal grid has been plotted.
+
+    """
+
+    if isinstance(cmap, str):
+        cmap=plt.get_cmap(cmap)
+
+    xpoints = [x[0] for x in centers]
+    ypoints = [x[1] for x in centers]
+    patches = []
+    weights = np.array(weights)
+    if len(weights.shape) < 3:
+        weights = np.expand_dims(weights, 2)
+
+    if not isinstance(titles, list):
+        titles = [titles]
+    if len(titles) != weights.shape[0]:
+        titles = [""] * weights.shape[2]
+    for i, title in zip(range(weights.shape[0]), titles):
+
+        #        ax = fig.add_subplot(111, aspect='equal')
+        ax = fig.add_subplot(int(shape[0]), int(shape[1]), i + 1, aspect='equal')
+        # Get pixel size between two data points
+        ax.scatter(xpoints, ypoints, s=0.0, marker='s')
+        ax.axis([min(xpoints) - 1., max(xpoints) + 1.,
+                 min(ypoints) - 1., max(ypoints) + 1.])
+
+        weight = weights[i, :, :]
+        if any(isinstance(el, np.ndarray) for el in weight) and len(weight[0]) == 3:
+
+            for x, y, w in zip(xpoints, ypoints, weight):
+                rectangle = RegularPolygon((x, y), numVertices=4, radius=.95 / np.sqrt(2),
+
+                                         facecolor=w)
+                ax.add_patch(rectangle)
+
+        else:
+
+            #            weight=weight.reshape(-1, weights.shape[2])
+            for x, y, w in zip(xpoints, ypoints, weight):
+                if isinstance(w, np.ndarray):
+                    w = w[0]
+                rectangle = RegularPolygon((x, y), numVertices=4, radius=.95 / np.sqrt(2), orientation=np.pi/4)
+                patches.append(rectangle)
+
+            p = PatchCollection(patches)
+            p.cmap = cmap
+            p.set_alpha(alpha=alpha)
+
+            p.set_array(np.array([w[0] for w in weight]))
+            ax.add_collection(p)
+
+            ax.axis('off')
+            ax.autoscale_view()
+            if show_colorbar:
+                divider = make_axes_locatable(ax)
+                cax = divider.append_axes("right", size="5%", pad=0.05)
+
+                cbar = plt.colorbar(p, cax=cax)
+                #            cbar.set_label('Weights Difference', size=30, labelpad=30)
+                cbar.ax.tick_params(labelsize=20 / np.log2(len(titles)))
+        ax.axis('off')
+        if title != "":
+            ax.set_title(title, size=30 / (np.log2(len(titles))))
         ax.autoscale_view()
     return ax
