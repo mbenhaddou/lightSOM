@@ -1,7 +1,7 @@
 from matplotlib import pyplot as plt
 import numpy as np
 import math, os
-from lightSOM.visualization.map_plot import plot_hex_map, plot_rect_map
+from lightSOM.visualization.map_plot import plot_map, plot_projection_map
 from kdmt.matrix import euclidean_distance
 from collections import Counter
 import matplotlib
@@ -48,7 +48,10 @@ class SOMView():
 
         return Diffmatrix.reshape(som.nodes.nnodes)
 
-    def _set_labels(self, cents, ax, labels, onlyzeros, fontsize, hex=False):
+    def _set_labels(self, cents, ax, labels, onlyzeros, fontsize, lattice="hexa"):
+
+        hex = lattice=="hexa"
+
         for i, txt in enumerate(labels):
             if onlyzeros == True:
                 if txt > 0:
@@ -136,7 +139,7 @@ class SOMView():
         colors = []
         if colorEx:
             colors.append([list(node) for node in matrix.reshape(-1, 3)])
-            ax = plot_hex_map(self._fig, centers, colors, 'Node Grid w Color Features')
+            ax = plot_map(self._fig, centers, colors, 'Node Grid w Color Features')
         else:
             weights = matrix
             if which_dim == 'all':
@@ -154,12 +157,9 @@ class SOMView():
             elif which_dim=='none':
                 names=[]
                 colors.append(matrix)
-            if self.som.nodes.lattice=="hexa":
-                ax=plot_hex_map(fig=self._fig, centers=centers, weights=colors, titles=names,
-                                shape=[no_row_in_plot, no_col_in_plot], cmap=cmap, show_colorbar=show_colorbar, alpha=alpha)
-            else:
-                ax=plot_rect_map(fig=self._fig, centers=centers, weights=colors, titles=names,
-                                shape=[no_row_in_plot, no_col_in_plot], cmap=cmap, show_colorbar=show_colorbar, alpha=alpha)
+            ax=plot_map(fig=self._fig, centers=centers, weights=colors, titles=names,
+                            shape=[no_row_in_plot, no_col_in_plot], cmap=cmap, show_colorbar=show_colorbar, lattice=self.som.nodes.lattice, alpha=alpha)
+
 
 
         if save==True:
@@ -184,15 +184,16 @@ class SOMView():
 
     def plot_features_map(self,file_name='features_map.png', cmap = plt.get_cmap('viridis'),
              col_size=1, save=True, path='.', show_colorbar=False, colorEx=False):
-
+        self.title="Features Map"
+        self.prepare()
         features=np.zeros(self.som.nodes.mapsize)
+
         for i in np.arange(self.som.nodes.matrix.shape[0]):
             for j in np.arange(self.som.nodes.matrix.shape[1]):
                 features[i][j] = np.argmax(self.som.nodes.matrix[i, j, :])
 
-        self.title="Features Map"
-        ax= self.show(features.ravel(), file_name, "none", cmap,
-             col_size, save, path, show_colorbar, colorEx)
+        centers = [[node[0], node[1]] for node in self.som.nodes.coordinates]
+        return plot_projection_map(self._fig, centers, features.ravel(), target=self.som.features_names[0])
 
     def plot_diffs(self, cmap = plt.get_cmap('viridis'),
                    col_size=1, denormalize=False, save=True, path='.', show_colorbar=False, annotate="none", file_name='nodes_differences', colorEx=False):
@@ -223,33 +224,20 @@ class SOMView():
         clusters=[]
         clusters.append(self.som.cluster(n_clusters))
 
+
         # codebook = getattr(som, 'cluster_labels', som.cluster())
         msz = self.som.nodes.mapsize
 
         self.prepare()
-        if self.som.nodes.lattice == "rect":
-            ax = self._fig.add_subplot(111)
+        if data:
+            proj = self.som.project(data)
+            cents = self.som.bmu_ind_to_xy(proj)
 
-            if data:
-                proj = self.som.project(data)
-                cents = self.som.bmu_ind_to_xy(proj)
-                if anotate:
-                    # TODO: Fix position of the labels
-                    self._set_labels(cents, ax, clusters[proj], onlyzeros, labelsize, hex=False)
 
-            else:
-                cents = self.som.bmu_ind_to_xy(np.arange(0, msz[0]*msz[1]))
-                if anotate:
-                    # TODO: Fix position of the labels
-                    self._set_labels(cents, ax, clusters, onlyzeros, labelsize, hex=False)
-
-            plt.imshow(np.flip(np.array(clusters).reshape(msz[0], msz[1])[::],axis=0), alpha=0.5)
-
-        elif self.som.nodes.lattice == "hexa":
-            ax=plot_hex_map(self._fig, centers, clusters, cmap=cmap, show_colorbar=False)
-            if anotate:
-                self._set_labels(centers, ax, clusters[0], onlyzeros, labelsize, hex=True)
-            self.save("clusres.png", bbox_inches='tight', dpi=300)
+        ax=plot_map(self._fig, centers, clusters, cmap=cmap, show_colorbar=False, lattice=self.som.nodes.lattice)
+        if anotate:
+            self._set_labels(centers, ax, clusters[0], onlyzeros, labelsize, lattice=self.som.nodes.lattice)
+        self.save("clusres.png", bbox_inches='tight', dpi=300)
 
 
     def plot_hits_map(self, anotate=True, onlyzeros=False, labelsize=7, cmap=plt.get_cmap("jet")):
@@ -280,7 +268,7 @@ class SOMView():
 
             ax = plt.gca()
             if anotate:
-                self._set_labels(cents, ax, counts, onlyzeros, labelsize)
+                self._set_labels(centers, ax, counts, onlyzeros, labelsize)
 
             pl = plt.pcolor(mp[::-1], norm=norm, cmap=cmap)
 
@@ -291,7 +279,7 @@ class SOMView():
 
             #plt.show()
         elif self.som.nodes.lattice == "hexa":
-            ax=plot_hex_map(self._fig, centers, counts, cmap=cmap, show_colorbar=False)
+            ax=plot_map(self._fig, centers, counts, cmap=cmap, show_colorbar=False)
 
 #            ax, cents = plot_hex_map(mp[::-1], colormap=cmap, fig=self._fig)
             if anotate:

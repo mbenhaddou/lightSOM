@@ -18,12 +18,12 @@ from sys import stdout
 import lightSOM.clustering.densityPeak as dp
 import lightSOM.clustering.qualityThreshold as qt
 import logging
-from sklearn import cluster
+
 from lightSOM.normalization import NormalizerFactory
 from lightSOM.nodes import Nodes
 from lightSOM.distance import Distance
 from lightSOM.neighborhood import get_neighberhood
-from lightSOM import hexagons as hx
+from sklearn import cluster as sk_cluster
 from lightSOM.decay_functions import *
 
 class KSOM:
@@ -492,8 +492,7 @@ class KSOM:
 
         return bmuList
 
-    def cluster_data(self, array, type='qthresh', cutoff=5, quant=0.2, percent=0.02, numcl=8,\
-                    savefile=True, filetype='dat', show=False, printout=True, path='./'):
+    def cluster_data(self, array=None, type='qthresh', cutoff=5, quant=0.2, percent=0.02, numcl=8):
 
         """Clusters the data in a given array according to the SOM trained map.
             The clusters can also be plotted.
@@ -518,7 +517,8 @@ class KSOM:
         """
 
         """ Call project to first find the bmu for each array datapoint, but without producing any graph. """
-
+        if array is None:
+            array=self.data
         bmuList = self.project(array, show=False, printout=False)
         clusters=[]
 
@@ -544,14 +544,14 @@ class KSOM:
             try:
 
                 if type=='MeanShift':
-                    bandwidth = cluster.estimate_bandwidth(np.asarray(bmuList), quantile=quant, n_samples=500)
-                    cl = cluster.MeanShift(bandwidth=bandwidth, bin_seeding=True).fit(bmuList)
+                    bandwidth = sk_cluster.estimate_bandwidth(np.asarray(bmuList), quantile=quant, n_samples=500)
+                    cl = sk_cluster.MeanShift(bandwidth=bandwidth, bin_seeding=True).fit(bmuList)
 
                 if type=='DBSCAN':
-                    cl = cluster.DBSCAN(eps=cutoff, min_samples=5).fit(bmuList)
+                    cl = sk_cluster.DBSCAN(eps=cutoff, min_samples=5).fit(bmuList)
 
                 if type=='KMeans':
-                    cl= cluster.KMeans(n_clusters=numcl).fit(bmuList)
+                    cl= sk_cluster.KMeans(n_clusters=numcl).fit(bmuList)
 
                 clLabs = cl.labels_
 
@@ -567,8 +567,12 @@ class KSOM:
                 raise
         else:
             sys.exit("Error: unkown clustering algorithm " + type)
+        clusters_=[0]* self.nodes.nnodes
 
-        return clusters
+        for i, cluster in enumerate(clusters):
+            for c in cluster:
+                clusters_[c]=i
+        return clusters_
 
     def cluster(self, n_clusters=4, random_state=0):
         import sklearn.cluster as clust
